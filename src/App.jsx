@@ -35,7 +35,7 @@ Chart.register(
 )
 
 const API_BASE = 'https://ws.audioscrobbler.com/2.0/'
-const DEFAULT_API_KEY = '790c37d90400163a5a5fe00d6ca32ef0'
+const DEFAULT_API_KEY = '3426144fbd1fffafc8951311aa7b7319'
 const FALLBACK_IMAGE = 'https://lastfm.freetls.fastly.net/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png'
 const periodLabel = (period) => {
   if (period === 'overall') return 'Overall'
