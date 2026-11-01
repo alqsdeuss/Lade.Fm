@@ -158,6 +158,11 @@ export default function App() {
     items: []
   })
   const [collageReady, setCollageReady] = useState(false)
+  const [collageOptions, setCollageOptions] = useState({
+    showTitles: false,
+    showWatermark: true
+  })
+  const [copiedCollage, setCopiedCollage] = useState(false)
 
   const [obsessionsPeriod, setObsessionsPeriod] = useState('7day')
   const [obsessionsLimit, setObsessionsLimit] = useState(20)
@@ -939,40 +944,163 @@ export default function App() {
     }
   }
 
-  const downloadCollage = async () => {
+  const truncateText = (ctx, text, maxWidth) => {
+    if (!text) return ''
+    if (ctx.measureText(text).width <= maxWidth) return text
+    let str = text
+    while (str.length > 0 && ctx.measureText(str + '...').width > maxWidth) {
+      str = str.slice(0, -1)
+    }
+    return str ? str + '...' : ''
+  }
+
+  const renderCollageCanvas = async () => {
     const images = collageGrid.items
-    if (!images.length) return
+    if (!images.length) return null
 
     const size = collageGrid.size
-    const imageSize = 300
+    const tileSize = 320
+    const watermarkHeight = collageOptions.showWatermark ? 44 : 0
     const canvas = document.createElement('canvas')
-    canvas.width = size * imageSize
-    canvas.height = size * imageSize
+    canvas.width = size * tileSize
+    canvas.height = size * tileSize + watermarkHeight
     const ctx = canvas.getContext('2d')
 
-    ctx.fillStyle = '#000'
+    ctx.fillStyle = '#111113'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     await Promise.all(
       images.map((item, index) => new Promise((resolve) => {
+        const col = index % size
+        const row = Math.floor(index / size)
+        const x = col * tileSize
+        const y = row * tileSize
+        const src = getItemImage(item)
+
         const img = new Image()
         img.crossOrigin = 'Anonymous'
         img.onload = () => {
-          const col = index % size
-          const row = Math.floor(index / size)
-          ctx.drawImage(img, col * imageSize, row * imageSize, imageSize, imageSize)
+          try {
+            ctx.drawImage(img, x, y, tileSize, tileSize)
+          } catch {
+            ctx.fillStyle = '#222'
+            ctx.fillRect(x, y, tileSize, tileSize)
+          }
           resolve()
         }
-        img.onerror = resolve
-        const src = getItemImage(item)
+        img.onerror = () => {
+          const fallback = new Image()
+          fallback.onload = () => {
+            try {
+              ctx.drawImage(fallback, x, y, tileSize, tileSize)
+            } catch {
+              ctx.fillStyle = '#222'
+              ctx.fillRect(x, y, tileSize, tileSize)
+            }
+            resolve()
+          }
+          fallback.onerror = () => {
+            ctx.fillStyle = '#222'
+            ctx.fillRect(x, y, tileSize, tileSize)
+            resolve()
+          }
+          fallback.src = FALLBACK_IMAGE
+        }
         img.src = src + (src.includes('?') ? '&' : '?') + 't=' + new Date().getTime()
       }))
     )
 
-    const link = document.createElement('a')
-    link.download = `lastfm-collage-${username}-${Date.now()}.png`
-    link.href = canvas.toDataURL('image/png')
-    link.click()
+    if (collageOptions.showTitles) {
+      images.forEach((item, index) => {
+        const col = index % size
+        const row = Math.floor(index / size)
+        const x = col * tileSize
+        const y = row * tileSize
+
+        const grad = ctx.createLinearGradient(x, y + tileSize - 65, x, y + tileSize)
+        grad.addColorStop(0, 'rgba(0, 0, 0, 0)')
+        grad.addColorStop(0.3, 'rgba(0, 0, 0, 0.55)')
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0.88)')
+        ctx.fillStyle = grad
+        ctx.fillRect(x, y + tileSize - 65, tileSize, 65)
+
+        const albumTitle = item.name || 'Unknown Album'
+        const artistName = item.artist?.name || (typeof item.artist === 'string' ? item.artist : '')
+
+        ctx.fillStyle = '#ffffff'
+        ctx.textAlign = 'left'
+
+        ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        ctx.fillText(truncateText(ctx, albumTitle, tileSize - 20), x + 10, y + tileSize - 26)
+
+        if (artistName) {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'
+          ctx.font = '400 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+          ctx.fillText(truncateText(ctx, artistName, tileSize - 20), x + 10, y + tileSize - 10)
+        }
+      })
+    }
+
+    if (collageOptions.showWatermark) {
+      const footerY = size * tileSize
+      ctx.fillStyle = '#0f0f11'
+      ctx.fillRect(0, footerY, canvas.width, watermarkHeight)
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(0, footerY)
+      ctx.lineTo(canvas.width, footerY)
+      ctx.stroke()
+
+      ctx.font = '700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      ctx.fillStyle = '#d51007'
+      ctx.textAlign = 'left'
+      ctx.fillText('lade.fm', 16, footerY + 27)
+
+      ctx.font = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)'
+      ctx.textAlign = 'right'
+      const label = periodLabel(collageGrid.period)
+      const watermarkRight = `${username ? '@' + username + ' • ' : ''}${label} • ${size}x${size}`
+      ctx.fillText(watermarkRight, canvas.width - 16, footerY + 27)
+    }
+
+    return canvas
+  }
+
+  const downloadCollage = async () => {
+    const canvas = await renderCollageCanvas()
+    if (!canvas) return
+
+    try {
+      const link = document.createElement('a')
+      link.download = `ladefm-collage-${username || 'user'}-${collageGrid.size}x${collageGrid.size}-${Date.now()}.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+    } catch (err) {
+      setError(`Error downloading collage: ${err.message}`)
+    }
+  }
+
+  const copyCollageToClipboard = async () => {
+    const canvas = await renderCollageCanvas()
+    if (!canvas) return
+
+    try {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return
+        if (navigator.clipboard && navigator.clipboard.write) {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+          setCopiedCollage(true)
+          setTimeout(() => setCopiedCollage(false), 2500)
+        } else {
+          setError('Clipboard image copy is not supported in this browser.')
+        }
+      })
+    } catch (err) {
+      setError(`Error copying collage: ${err.message}`)
+    }
   }
 
   const logout = () => setShowLogout(true)
@@ -1507,30 +1635,66 @@ export default function App() {
                       <option value="12month">Last Year</option>
                     </select>
 
+                    <label className="collage-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={collageOptions.showTitles}
+                        onChange={(e) => setCollageOptions((prev) => ({ ...prev, showTitles: e.target.checked }))}
+                      />
+                      Overlay Titles
+                    </label>
+
+                    <label className="collage-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={collageOptions.showWatermark}
+                        onChange={(e) => setCollageOptions((prev) => ({ ...prev, showWatermark: e.target.checked }))}
+                      />
+                      Include Watermark
+                    </label>
+
                     <button className="btn-primary" type="button" onClick={generateCollage}>Generate</button>
                   </div>
                 </div>
 
                 {collageReady && collageGrid.items.length > 0 && (
                   <div className="collage-container">
-                    <div className={`collage-grid size-${collageGrid.size}x${collageGrid.size}`}>
-                      {collageGrid.items.map((album) => (
-                      <div
-                        key={`${album.name}-${album.artist?.name || album.mbid || 'item'}`}
-                        className="collage-item"
-                        title={`${album.name} - ${album.artist?.name || ''}`}
-                      >
-                        <img src={getItemImage(album)} alt={album.name} onError={(event) => { event.currentTarget.src = FALLBACK_IMAGE }} />
-                        <div className="collage-caption">{album.name}</div>
+                    <div className="collage-preview-wrapper">
+                      <div className={`collage-grid size-${collageGrid.size}x${collageGrid.size}`}>
+                        {collageGrid.items.map((album) => (
+                          <div
+                            key={`${album.name}-${album.artist?.name || album.mbid || 'item'}`}
+                            className={`collage-item ${collageOptions.showTitles ? 'titles-visible' : ''}`}
+                            title={`${album.name} - ${album.artist?.name || ''}`}
+                          >
+                            <img src={getItemImage(album)} alt={album.name} onError={(event) => { event.currentTarget.src = FALLBACK_IMAGE }} />
+                            <div className="collage-caption">
+                              <span className="caption-title">{album.name}</span>
+                              {album.artist?.name && <span className="caption-artist">{album.artist.name}</span>}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                      {collageOptions.showWatermark && (
+                        <div className="collage-preview-footer">
+                          <span className="collage-preview-brand">lade.fm</span>
+                          <span className="collage-preview-meta">
+                            {username && `@${username} • `}{periodLabel(collageGrid.period)} • {collageGrid.size}x{collageGrid.size}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
                 )}
 
                 <div className="collage-actions">
                   {collageGrid.items.length > 0 && (
-                    <button className="btn-primary" type="button" onClick={downloadCollage}>Download Image</button>
+                    <>
+                      <button className="btn-primary" type="button" onClick={downloadCollage}>Download Image</button>
+                      <button className="btn-outline" type="button" onClick={copyCollageToClipboard}>
+                        {copiedCollage ? 'Copied to Clipboard!' : 'Copy Image'}
+                      </button>
+                    </>
                   )}
                 </div>
               </section>

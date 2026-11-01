@@ -1719,3 +1719,92 @@ body[data-theme='dark'] .onboarding-card::before {
     gap: 8px;
   }
 }
+
+/* Collage Pro Enhancements */
+.collage-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+}
+
+.collage-checkbox-label input[type="checkbox"] {
+  accent-color: var(--lastfm-red);
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+.collage-preview-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: min(600px, 100%);
+  margin: 0 auto;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.collage-preview-footer {
+  background: #0f0f11;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.collage-preview-brand {
+  color: var(--lastfm-red);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+.collage-preview-meta {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.collage-item.titles-visible .collage-caption {
+  opacity: 1;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.88) 100%);
+  padding: 16px 6px 6px;
+}
+
+.collage-caption .caption-title {
+  display: block;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collage-caption .caption-artist {
+  display: block;
+  font-size: 9px;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collage-actions .btn-primary {
+  width: auto;
+  padding: 10px 20px;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.collage-actions .btn-outline {
+  padding: 10px 20px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+}
